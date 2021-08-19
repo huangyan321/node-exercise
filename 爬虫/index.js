@@ -3,31 +3,36 @@ const fs = require("fs")
 //获取html文档内容  
 const iconv = require("iconv-lite")
 const axios = require("axios")
-const { resolve } = require("path")
-
 let httpUrl = "https://pvp.qq.com/web201605/herolist.shtml"
-axios.get(httpUrl, {
-  responseType: 'arraybuffer'
-}).then(res => {
-  const str = transCoding(res.data, 'gbk')
-  let $ = cheerio.load(str, {
-    decodeEntities: false
-  })
-  console.log("开始爬取网页内容...");
-  $(".herolist li a").each(async (index, element) => {
-    let heroDetailUrl = "https://pvp.qq.com/web201605/" +
-      $(element).attr("href")
-    let $_ = cheerio.load(element, {
+/**
+ * 输出路径
+ * @param {String} path 
+ */
+function crawlPictures(path) {
+  axios.get(httpUrl, {
+    responseType: 'arraybuffer'
+  }).then(res => {
+    const str = transCoding(res.data, 'gbk')
+    let $ = cheerio.load(str, {
       decodeEntities: false
     })
-    let heroName = $_("img").attr('alt')
-    await sleep();
+    rmAndMkdir("./img")
+    console.log("开始爬取网页内容...");
+    $(".herolist li a").each(async (index, element) => {
+      let heroDetailUrl = "https://pvp.qq.com/web201605/" +
+        $(element).attr("href")
+      let $_ = cheerio.load(element, {
+        decodeEntities: false
+      })
+      let heroName = $_("img").attr('alt')
+      await sleep();
       parseImg({
-      heroDetailUrl,
-      heroName
+        heroDetailUrl,
+        heroName
+      })
     })
   })
-})
+}
 async function parseImg({
   heroDetailUrl,
   heroName
@@ -96,8 +101,80 @@ async function imgDownload({
 function transCoding(content, format) {
   return iconv.decode(Buffer.from(content), format)
 }
+
 function sleep() {
-  return new Promise((resolve,reject)=> {
+  return new Promise((resolve, reject) => {
     setTimeout(resolve, 2000);
   })
 }
+/**
+ * 判断文件是否存在
+ * @param {String} path 
+ * @returns
+ */
+function isFileExisted(path) {
+  return new Promise((resolve, reject) => {
+    fs.access(path, (err) => {
+      if (err) {
+        console.log("文件不存在");
+        resolve(false)
+      } else {
+        resolve(true)
+      }
+    })
+  })
+}
+/**
+ * 删除指定路径下的目录文件夹
+ * @param {String} path 
+ * @returns 
+ */
+function rmDir(path) {
+  return new Promise((resolve, reject) => {
+    fs.rmdir(path, {
+      recursive: true
+    }, (err) => {
+      if (err) {
+        reject(err)
+      } else {
+        console.log("正在删除");
+        resolve()
+      }
+    })
+  })
+}
+/**
+ * 在指定路径下创建目录
+ * @param {String} path 
+ * @returns 
+ */
+function mkDir(path) {
+  return new Promise((resolve, reject) => {
+    fs.mkdir(path, (err) => {
+      if (err) {
+        reject(err)
+      } else {
+        console.log("正在创建目录");
+        resolve()
+      }
+    })
+  })
+}
+/**
+ * 重新创建对应路径下文件夹
+ * @param {String} path 
+ */
+async function rmAndMkdir(path) {
+  try {
+    var isExist = await isFileExisted(path)
+    if (isExist) {
+      await rmDir(path);
+      await mkDir(path);
+    } else {
+      await mkDir(path);
+    }
+  } catch (err) {
+    console.log(err);
+  }
+}
+module.exports = crawlPictures
